@@ -124,3 +124,12 @@ class ToolTests(unittest.TestCase):
     def test_empty_credential_does_not_consume_next_line(self):
         source = "GROQ_API_KEY=\nLLM_BASE_URL=https://api.groq.com/openai/v1\n"
         self.assertEqual(Redactor().text(source), source)
+
+    def test_unquoted_boolean_and_null_settings_remain_typed(self):
+        source = "persist-credentials: false\nsecrets: null\n"
+        redactor = Redactor()
+        self.assertEqual(redactor.text(source), source)
+        self.assertEqual(
+            redactor.text('{"truncated": false, "file": null}'),
+            '{"truncated": false, "file": null}',
+        )

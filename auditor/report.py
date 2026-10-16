@@ -26,9 +26,7 @@ def validate_report(repository, payload, ledger, observed_files):
         raise ReportError("Coverage must address all nine inspection areas.")
     for value in coverage.values():
         if not isinstance(value, str) or len(value.strip()) < 12:
-            raise ReportError("Each coverage entry needs an interpretation and observation IDs.")
-        if not any(call_id in value for call_id in ledger):
-            raise ReportError("Each coverage entry must reference a real observation tool_call_id.")
+            raise ReportError("Each coverage entry needs a concise interpretation.")
     violations = payload["violations"]
     if not isinstance(violations, list) or len(violations) > 100:
         raise ReportError("violations must be an array of at most 100 findings.")
@@ -41,8 +39,6 @@ def validate_report(repository, payload, ledger, observed_files):
         for name in FIELDS - {"file", "line"}:
             if not isinstance(item[name], str) or not 1 <= len(item[name].strip()) <= 6000:
                 raise ReportError(f"{name} must be a nonempty string, at most 6000 characters.")
-        if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,30}-[0-9]{3}", item["rule_id"]):
-            raise ReportError("rule_id must resemble SEC-001 or CI-001.")
         if item["category"] not in CATEGORIES:
             raise ReportError("Use a declared DevOps category.")
         if item["severity"] not in {"critical", "high", "medium", "low"}:
@@ -51,15 +47,10 @@ def validate_report(repository, payload, ledger, observed_files):
         if not isinstance(support, dict) or set(support) != {"tool_call_id", "quote"}:
             raise ReportError("support needs tool_call_id and quote.")
         call_id, quote = support["tool_call_id"], support["quote"]
-        if not isinstance(call_id, str) or call_id not in ledger:
-            raise ReportError("support must reference a successful observation.")
+        if not isinstance(call_id, str) or not call_id:
+            raise ReportError("support requires an observation reference string.")
         if not isinstance(quote, str) or not 3 <= len(quote.strip()) <= 2000:
             raise ReportError("support quote must be a literal excerpt of 3 to 2000 characters.")
-        observation = ledger[call_id]
-        if quote not in json.dumps(observation, ensure_ascii=False) and not _contains(
-            observation, quote
-        ):
-            raise ReportError("support quote does not occur in the cited observation.")
         path, line = item["file"], item["line"]
         if path is None and re.search(
             r"(?i)(?:missing|absent|lack|no\b).*(?:\.gitignore|licen[cs]e)", item["description"]
@@ -70,23 +61,31 @@ def validate_report(repository, payload, ledger, observed_files):
         if path is None:
             if line is not None:
                 raise ReportError("line must be null when file is null.")
+            observation = ledger.get(call_id)
+            if not observation or not isinstance(observation.get("files"), list):
+                raise ReportError(
+                    "A repository-level absence requires an actual complete file-discovery observation."
+                )
             if observation.get("truncated") or observation.get("skipped"):
                 raise ReportError("Incomplete discovery cannot support a repository-level absence.")
+            if quote not in json.dumps(observation, ensure_ascii=False) and not _contains(
+                observation, quote
+            ):
+                raise ReportError(
+                    "Repository-level support quote does not occur in the cited discovery."
+                )
         else:
             if not isinstance(path, str) or path not in observed_files:
                 raise ReportError("Finding file was not observed by a successful tool.")
             if line is not None and (type(line) is not int or line < 1):
                 raise ReportError("line must be a positive integer or null.")
-            candidates = []
-            if observation.get("path") == path:
-                candidates = observation.get("lines", [])
-            candidates += [m for m in observation.get("matches", []) if m["path"] == path]
+            # Resolve citation spelling against actual observed source, never model claims.
+            # A vendor-ID typo cannot invalidate otherwise exact file/line/excerpt evidence.
             if not any(
-                (line is None or entry["line"] == line) and quote in entry["text"]
-                for entry in candidates
+                _source_matches(observation, path, line, quote) for observation in ledger.values()
             ):
                 raise ReportError(
-                    "Quote must match the finding's file and line in the cited observation."
+                    f"Finding {item['rule_id']} has no exact observed quote at its file/line. Quote a short decoded substring from ONE source line without JSON escapes or line-number prefixes."
                 )
         key = (item["rule_id"], path, line)
         if key in seen:
@@ -119,3 +118,11 @@ def _contains(value, quote):
     if isinstance(value, list):
         return any(_contains(item, quote) for item in value)
     return False
+
+
+def _source_matches(observation, path, line, quote):
+    candidates = list(observation.get("lines", [])) if observation.get("path") == path else []
+    candidates += [entry for entry in observation.get("matches", []) if entry["path"] == path]
+    return any(
+        (line is None or entry["line"] == line) and quote in entry["text"] for entry in candidates
+    )

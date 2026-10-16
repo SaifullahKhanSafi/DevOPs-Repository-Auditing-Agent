@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from agent import atomic_write  # noqa: E402
+from auditor.errors import AuditError  # noqa: E402
 from auditor.llm import ChatClient, Settings, load_env  # noqa: E402
 from auditor.loop import AuditAgent  # noqa: E402
 from auditor.security import Redactor  # noqa: E402
@@ -45,23 +47,60 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=["defective", "healthy"], required=True)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "docs" / "live_evaluation")
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume this deterministic fixture checkpoint"
+    )
     args = parser.parse_args()
     load_env()
     settings = Settings.from_env()
     redactor = Redactor([settings.api_key])
-    repo = FixtureRepository(fixture_files(args.case == "defective"))
+    saved_dates = {name: os.environ.get(name) for name in ("GIT_AUTHOR_DATE", "GIT_COMMITTER_DATE")}
+    os.environ.update(
+        GIT_AUTHOR_DATE="2026-01-01T00:00:00+00:00", GIT_COMMITTER_DATE="2026-01-01T00:00:00+00:00"
+    )
+    try:
+        repo = FixtureRepository(fixture_files(args.case == "defective"))
+    finally:
+        for name, value in saved_dates.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
     try:
         tools = InspectionTools(repo, redactor)
+        resume_events = None
+        checkpoint = args.output_dir / (args.case + ".trace.jsonl")
+        if args.resume:
+            resume_events = [
+                json.loads(line) for line in checkpoint.read_text(encoding="utf-8").splitlines()
+            ]
+        agent = None
+
+        def on_event(event):
+            if event["event"] == "tool":
+                error = event.get("result", {}).get("error")
+                print(
+                    f"{args.case}: step {event['step']} {event['name']}"
+                    + (" - " + error if error else ""),
+                    flush=True,
+                )
+            if agent is not None and (
+                not args.resume or any(e.get("event") == "resumed" for e in agent.events)
+            ):
+                atomic_write(
+                    args.output_dir / (args.case + ".trace.jsonl"),
+                    "".join(json.dumps(redactor.clean(e)) + "\n" for e in agent.events),
+                )
+
         agent = AuditAgent(
-            ChatClient(settings),
-            tools,
-            max_steps=settings.max_steps,
-            event_callback=lambda e: print(f"{args.case}: step {e['step']} {e['name']}", flush=True)
-            if e["event"] == "tool"
-            else None,
+            ChatClient(settings), tools, max_steps=settings.max_steps, event_callback=on_event
         )
         try:
-            report = agent.run(URL)
+            report = agent.run(URL, resume_events=resume_events)
+        except AuditError as exc:
+            agent._record({"event": "failed", "error": redactor.text(str(exc))})
+            print("Live fixture audit failed: " + redactor.text(str(exc)), file=sys.stderr)
+            return 1
         finally:
             atomic_write(
                 args.output_dir / (args.case + ".trace.jsonl"),
@@ -111,4 +150,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

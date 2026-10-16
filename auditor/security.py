@@ -22,6 +22,8 @@ class Redactor:
         )
         for match in assignment.finditer(value):
             candidate = match.group(1) or match.group(2)
+            if match.group(2) and candidate.lower() in {"true", "false", "null", "none"}:
+                continue
             if candidate and not candidate.startswith(
                 ("${", "os.", "environ", "getenv", "process.env", "{{", "[REDACTED]")
             ):

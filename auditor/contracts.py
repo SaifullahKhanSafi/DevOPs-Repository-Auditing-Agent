@@ -37,30 +37,49 @@ def tool_schemas():
         }
     }
     string = {"type": "string"}
-    integer = {"type": "integer"}
+
+    def integer(low, high, default):
+        return {"type": "integer", "minimum": low, "maximum": high, "default": default}
+
     schemas = [
         function(
             "list_files",
             "List tracked files; paginate until complete before claiming absence. Prefix is literal, not a glob.",
-            {**purpose, "prefix": string, "offset": integer, "limit": integer},
+            {
+                **purpose,
+                "prefix": {"type": "string", "default": ""},
+                "offset": integer(0, 1000000, 0),
+                "limit": integer(1, 1000, 300),
+            },
             ["purpose"],
         ),
         function(
             "read_file",
             "Read numbered, redacted UTF-8 lines of a tracked regular file. Paginate with next_line.",
-            {**purpose, "path": string, "start_line": integer, "max_lines": integer},
+            {
+                **purpose,
+                "path": string,
+                "start_line": integer(1, 10000000, 1),
+                "max_lines": integer(1, 250, 160),
+            },
             ["purpose", "path"],
         ),
         function(
             "search_code",
             "Case-insensitive LITERAL search over redacted text. Glob scopes paths. Offsets paginate files; skipped/overflow files mean incomplete evidence.",
-            {**purpose, "pattern": string, "glob": string, "offset": integer, "limit": integer},
+            {
+                **purpose,
+                "pattern": {"type": "string", "minLength": 1, "maxLength": 200},
+                "glob": {"type": "string", "default": "*", "minLength": 1, "maxLength": 200},
+                "offset": integer(0, 1000000, 0),
+                "limit": integer(1, 100, 60),
+            },
             ["purpose", "pattern"],
         ),
         function(
             "git_log",
             "Observe bounded default-branch history and changed paths, with a shallow-history warning.",
-            {**purpose, "limit": integer, "path": string},
+            {**purpose, "limit": integer(1, 100, 20), "path": string},
             ["purpose"],
         ),
     ]
@@ -68,7 +87,7 @@ def tool_schemas():
         function(
             "record_notes",
             "Save concise factual audit notes, candidate findings with quotes/observation IDs, and open questions for long investigations. Notes are not new evidence or private reasoning.",
-            {"notes": {"type": "string"}},
+            {"notes": {"type": "string", "maxLength": 4500}},
             ["notes"],
         )
     )
@@ -80,14 +99,17 @@ def tool_schemas():
             "category": {"type": "string", "enum": CATEGORIES},
             "severity": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
             "file": {"type": ["string", "null"]},
-            "line": {"type": ["integer", "null"]},
+            "line": {"type": ["integer", "null"], "minimum": 1},
             "description": string,
             "evidence": string,
             "recommendation": string,
             "support": {
                 "type": "object",
                 "additionalProperties": False,
-                "properties": {"tool_call_id": string, "quote": string},
+                "properties": {
+                    "tool_call_id": string,
+                    "quote": {"type": "string", "minLength": 3, "maxLength": 2000},
+                },
                 "required": ["tool_call_id", "quote"],
             },
         },
@@ -111,7 +133,14 @@ def tool_schemas():
                 "violations": {"type": "array", "items": violation},
                 "coverage": {
                     "type": "object",
-                    "properties": {c: string for c in CATEGORIES},
+                    "properties": {
+                        c: {
+                            "type": "string",
+                            "minLength": 12,
+                            "description": "Interpret observed facts or mark unavailable/not applicable. Cite printed observation IDs where relevant; clearly explain unavailable/not-applicable areas.",
+                        }
+                        for c in CATEGORIES
+                    },
                     "required": CATEGORIES,
                     "additionalProperties": False,
                 },

@@ -1,0 +1,17 @@
+{
+  "ci_run": "https://github.com/SaifullahKhanSafi/DevOPs-Repository-Auditing-Agent/actions/runs/38869613081",
+  "ci_conclusion": "success",
+  "matrix_jobs": 6,
+  "live_audit_run": "https://github.com/SaifullahKhanSafi/DevOPs-Repository-Auditing-Agent/actions/runs/38869615277",
+  "live_audit_conclusion": "success",
+  "verified_commit": "f23071d6bcfb5fdb58df58e22bb929ef4123efbf",
+  "artifact_name": "devops-audit",
+  "report_repository": "https://github.com/octocat/Hello-World",
+  "violations": 0,
+  "completion": {
+    "event": "completed",
+    "violations": 0,
+    "steps": 10,
+    "tool_calls": 10
+  }
+}

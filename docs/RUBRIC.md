@@ -41,6 +41,8 @@ Implementation and local checks cannot certify hidden-repository recall, instruc
 
 ## Completed implementation evidence
 
-The public repository now contains the executable agent, all required inspection tools, provider configuration example, installable package, tests, README, authentic `sample_report.json`, full trace and sample provenance. The local suite has 45 passing tests. Hosted validation has successfully exercised all six Linux/Windows and Python 3.11/3.12/3.13 combinations. Groq credentials are stored only in local `.env` and the encrypted GitHub Actions secret. The current run status is visible on the repository's Actions page.
+The public repository now contains the executable agent, all required inspection tools, provider configuration example, installable package, tests, README, authentic `sample_report.json`, full trace and sample provenance. The local suite has 48 passing tests. Hosted validation has successfully exercised all six Linux/Windows and Python 3.11/3.12/3.13 combinations. Groq credentials are stored only in local `.env` and the encrypted GitHub Actions secret. The current run status is visible on the repository's Actions page.
 
 The numbered submission gates above remain a reproducibility checklist for the student; they are not claims about unknown instructor repositories. Live fixture findings, when present, are clearly labeled local synthetic regression cases. Submit the public repository URL through the course channel.
+
+Known-defect live validation remains incomplete because provider limits stopped the run before a validated report. See `VALIDATION.md`. All required deliverables are present, but this mapping does not certify the 30% detection category or full marks.

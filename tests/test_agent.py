@@ -42,7 +42,7 @@ class AgentTests(unittest.TestCase):
                 if m.get("role") == "tool" and m.get("tool_call_id") == "discover"
             )
         )
-        self.assertEqual(observed["observation_id"], "discover")
+        self.assertEqual(observed["observation_id"], "obs-001")
 
     def test_dynamic_choice_uses_prior_observation(self):
         outer = self
@@ -243,6 +243,28 @@ class AgentTests(unittest.TestCase):
             validate_report(
                 URL,
                 {"violations": [optional], "coverage": coverage()},
+                agent.ledger,
+                agent.observed_files,
+            )
+
+    def test_malformed_resume_is_a_safe_error(self):
+        with self.assertRaisesRegex(AuditError, "event objects"):
+            AuditAgent(ScriptedClient([]), self.tools).run(URL, resume_events=["invalid"])
+
+    def test_source_evidence_resolves_an_incidental_citation_typo(self):
+        agent = AuditAgent(ScriptedClient(investigation()), self.tools)
+        agent.run(URL)
+        item = finding()
+        item["support"]["tool_call_id"] = "mistyped-reference"
+        report = validate_report(
+            URL, {"violations": [item], "coverage": coverage()}, agent.ledger, agent.observed_files
+        )
+        self.assertEqual(len(report["violations"]), 1)
+        item["support"]["quote"] = "invented source that was never observed"
+        with self.assertRaises(ReportError):
+            validate_report(
+                URL,
+                {"violations": [item], "coverage": coverage()},
                 agent.ledger,
                 agent.observed_files,
             )
