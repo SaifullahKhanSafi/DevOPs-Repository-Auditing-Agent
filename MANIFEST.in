@@ -1,0 +1,7 @@
+include README.md .env.example requirements.txt requirements-dev.txt
+recursive-include tests *.py
+recursive-include scripts *.py
+recursive-include docs *.md *.json *.jsonl
+recursive-include .github *.yml
+include sample_report.json
+exclude .env

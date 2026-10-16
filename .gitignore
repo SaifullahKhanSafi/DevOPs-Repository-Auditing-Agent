@@ -1,0 +1,16 @@
+.venv/
+.tools/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.coverage
+coverage.xml
+.ruff_cache/
+.env
+.env.*
+!.env.example
+report.json
+*.trace.jsonl
+artifacts/

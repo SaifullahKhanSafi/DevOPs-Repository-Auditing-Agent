@@ -1,0 +1,47 @@
+name: Live Groq audit
+
+# Manual, trusted execution only: pull requests never receive the API key.
+on:
+  workflow_dispatch:
+    inputs:
+      repository_url:
+        description: Public HTTPS GitHub repository URL to audit
+        required: true
+        default: https://github.com/pallets/click
+      model:
+        description: Tool-capable Groq model available to your account
+        required: true
+        default: openai/gpt-oss-120b
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: auditing
+    steps:
+      - name: Checkout auditor
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Run audit
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LLM_BASE_URL: https://api.groq.com/openai/v1
+          LLM_MODEL: ${{ inputs.model }}
+          AUDIT_REPO_URL: ${{ inputs.repository_url }}
+        run: python agent.py --repo "$AUDIT_REPO_URL" --output artifacts/report.json
+      - name: Upload report and trace
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: devops-audit
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
