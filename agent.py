@@ -62,15 +62,30 @@ def main(argv=None):
         redactor = Redactor([settings.api_key])
         with Repository(repo_url) as repo:
             tools = InspectionTools(repo, redactor)
-            agent = AuditAgent(
-                ChatClient(settings),
-                tools,
-                max_steps=settings.max_steps,
-                event_callback=lambda event: print(
-                    f"Audit step {event['step']}: {event['name']}", file=sys.stderr, flush=True
+
+            def on_event(event):
+                if event.get("event") == "tool":
+                    detail = event.get("result", {}).get("error")
+                    print(
+                        f"Audit step {event['step']}: {event['name']}"
+                        + (" - " + detail if detail else ""),
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                resume_validated = not args.resume or any(
+                    item.get("event") == "resumed" for item in agent.events
                 )
-                if event.get("event") == "tool"
-                else None,
+                if agent is not None and resume_validated:
+                    atomic_write(
+                        trace,
+                        "".join(
+                            json.dumps(redactor.clean(item), ensure_ascii=False) + "\n"
+                            for item in agent.events
+                        ),
+                    )
+
+            agent = AuditAgent(
+                ChatClient(settings), tools, max_steps=settings.max_steps, event_callback=on_event
             )
             resume_events = None
             if args.resume:
@@ -107,7 +122,11 @@ def main(argv=None):
             else "Cannot read/write an audit file or parse configuration."
         )
         print("Audit failed: " + redactor.text(message), file=sys.stderr)
-        if agent is not None and trace.resolve() != args.output.resolve():
+        if (
+            agent is not None
+            and trace.resolve() != args.output.resolve()
+            and (not args.resume or any(item.get("event") == "resumed" for item in agent.events))
+        ):
             try:
                 events = agent.events + [{"event": "failed", "error": redactor.text(message)}]
                 atomic_write(

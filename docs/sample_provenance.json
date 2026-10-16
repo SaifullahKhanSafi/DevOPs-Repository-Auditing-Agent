@@ -1,0 +1,15 @@
+{
+  "source": "Real public repository inspected by the configured LLM-directed agent",
+  "repository": "https://github.com/octocat/Hello-World",
+  "commit": "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+  "model": "openai/gpt-oss-120b",
+  "provider": "https://api.groq.com/openai/v1",
+  "completed": {
+    "event": "completed",
+    "violations": 0,
+    "steps": 6,
+    "tool_calls": 6
+  },
+  "trace": "docs/sample_trace.jsonl",
+  "regenerate": "python scripts/generate_sample.py --repo https://github.com/octocat/Hello-World"
+}

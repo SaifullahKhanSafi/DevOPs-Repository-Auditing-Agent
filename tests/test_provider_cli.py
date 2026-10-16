@@ -179,3 +179,30 @@ class ProviderTests(unittest.TestCase):
         client.opener.open.side_effect = HTTPError("url", 429, "limit", {}, io.BytesIO(body))
         with self.assertRaises(ContextLimitError):
             client.complete([], [])
+
+    def test_resume_refusal_preserves_completed_trace(self):
+        fixture = FixtureRepository()
+        self.addCleanup(fixture.close)
+        context = Mock()
+        context.__enter__ = Mock(return_value=fixture)
+        context.__exit__ = Mock(return_value=False)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "report.json"
+            trace = output.with_suffix(".trace.jsonl")
+            original = (
+                json.dumps({"event": "start", "repository": URL, "commit": fixture.commit})
+                + "\n"
+                + json.dumps({"event": "completed", "violations": 0})
+                + "\n"
+            )
+            trace.write_text(original, encoding="utf-8")
+            with (
+                patch("agent.load_env"),
+                patch("agent.Settings.from_env", return_value=self.settings()),
+                patch("agent.Repository", return_value=context),
+                patch("agent.ChatClient", return_value=Mock()),
+                redirect_stderr(io.StringIO()),
+            ):
+                result = main(["--repo", URL, "--output", str(output), "--resume", str(trace)])
+            self.assertEqual(result, 1)
+            self.assertEqual(trace.read_text(encoding="utf-8"), original)

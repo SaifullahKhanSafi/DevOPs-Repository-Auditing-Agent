@@ -56,6 +56,14 @@ No interactive input is requested. Exit code 0 means a completed inspection, inc
 
 The output has exactly two top-level fields, `repository` and `violations`. Every finding has `rule_id`, `category`, `severity`, `file`, `line`, `description`, `evidence`, and `recommendation`. Severity is `critical`, `high`, `medium`, or `low`; inapplicable locations use JSON `null`. Line numbers are one-based. See [the JSON schema](docs/report.schema.json).
 
+Failed runs can be resumed on the same repository commit without repeating LLM discovery:
+
+```sh
+python agent.py --repo https://github.com/pallets/click --output report.json --resume report.trace.jsonl
+```
+
+Saved observations are re-executed against that commit before use; completed or mismatched traces are refused without overwriting the trace. Redacted checkpoints are saved after each tool call. Observation IDs are explicitly included in tool results for reliable model citations.
+
 The default audit trace is `report.trace.jsonl`; override it with `--trace path.jsonl`. It records the inspected commit, model-selected tool calls and their purposes, redacted observations, rejected submissions, nine-area coverage, and completion/failure. It does not request or store private model reasoning. Reports are atomically replaced only on success. On failure, an older report is retained; check the exit status and trace before using a report from an earlier run.
 
 ## Architecture and pipeline
@@ -130,7 +138,7 @@ Generate the required real example after configuring your key:
 python scripts/generate_sample.py --repo https://github.com/octocat/Hello-World
 ```
 
-This uses the production CLI and real provider; it writes `sample_report.json`, `docs/sample_trace.jsonl` and `docs/sample_provenance.json` with the inspected commit. It never substitutes a mock or hand-written report. A live run is still required if those files are absent. Review the trace and findings before committing them.
+This uses the production CLI and real provider; it writes `sample_report.json`, `docs/sample_trace.jsonl` and `docs/sample_provenance.json` with the inspected commit. It never substitutes a mock or hand-written report. The included sample is a real Groq `openai/gpt-oss-120b` audit of the public Hello-World repository with zero defensible violations; absence of optional tooling in a documentation-only repository is not a defect. Review the trace and findings before committing them.
 
 To measure detection, prepare independent public test repositories with obvious, subtle and healthy cases, annotate distinct actual defects, run the real agent, and manually match findings to known defects. Duplicate findings cannot earn additional true positives. Store a reviewed labels file, for example `{"true_positive_indices": [0, 2], "known_violation_count": 4}` (zero-based indices in the report). Then:
 
@@ -143,3 +151,14 @@ The scorer computes precision, recall, F1, false positives and false negatives. 
 ## Submission
 
 Submit only the public GitHub repository URL through the course channel. Before submission: ensure the real sample exists, check a fresh-clone installation and unattended audit, inspect the trace, and confirm GitHub CI passes. API credentials are supplied separately through the environment; never commit them. [Submission checklist](docs/RUBRIC.md).
+
+## Real-model regression checks
+
+The optional harness below uses real Groq calls against generated **local** Git fixtures with independently declared injected defects. It is separate from the public-repository CLI and authentic public sample. It records full source/provenance and never represents its placeholder repository identifier as a real public audit.
+
+```sh
+python scripts/live_evaluate.py --case defective
+python scripts/live_evaluate.py --case healthy
+```
+
+These checks can consume API quota. Their reviewed findings/metrics are small regression evidence, not hidden-repository scores. See `docs/live_evaluation/` when results are present.

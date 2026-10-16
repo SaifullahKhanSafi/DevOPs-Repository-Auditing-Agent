@@ -225,3 +225,24 @@ class AgentTests(unittest.TestCase):
         events = [{"event": "start", "repository": URL, "commit": "changed-commit"}]
         with self.assertRaisesRegex(AuditError, "current commit"):
             AuditAgent(ScriptedClient([]), self.tools).run(URL, resume_events=events)
+
+    def test_optional_file_absence_is_not_accepted_as_a_defect(self):
+        agent = AuditAgent(ScriptedClient(investigation([])), self.tools)
+        agent.run(URL)
+        optional = finding()
+        optional.update(
+            rule_id="RH-001",
+            category="repository hygiene",
+            severity="low",
+            file=None,
+            line=None,
+            description="Missing .gitignore file.",
+            support={"tool_call_id": "discover", "quote": ".github/workflows/ci.yml"},
+        )
+        with self.assertRaisesRegex(ReportError, "optional"):
+            validate_report(
+                URL,
+                {"violations": [optional], "coverage": coverage()},
+                agent.ledger,
+                agent.observed_files,
+            )

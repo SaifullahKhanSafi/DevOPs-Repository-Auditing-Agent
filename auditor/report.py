@@ -61,6 +61,12 @@ def validate_report(repository, payload, ledger, observed_files):
         ):
             raise ReportError("support quote does not occur in the cited observation.")
         path, line = item["file"], item["line"]
+        if path is None and re.search(
+            r"(?i)(?:missing|absent|lack|no\b).*(?:\.gitignore|licen[cs]e)", item["description"]
+        ):
+            raise ReportError(
+                "An absent optional .gitignore or LICENSE alone is not a demonstrated DevOps defect. Cite a concrete affected tracked artifact/project requirement, or remove the unsupported finding."
+            )
         if path is None:
             if line is not None:
                 raise ReportError("line must be null when file is null.")

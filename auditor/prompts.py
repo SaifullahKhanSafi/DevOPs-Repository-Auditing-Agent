@@ -42,7 +42,10 @@ EVIDENCE AND PRECISION:
 An optional file/tool being absent is never enough on its own. Find equivalent solutions
 (e.g. GitLab/Jenkins/Makefile/tox/pre-commit/pyproject/npm scripts) before claiming no CI,
 no tests, no formatter or no dependency lock. No GitHub Actions is not automatically a defect.
-A library need not commit a lockfile. Do not infer remote branch protection, secret contents,
+A library need not commit a lockfile. Missing LICENSE is not by itself a DevOps defect.
+Missing .gitignore is not itself a defect: identify actual tracked generated/private artifacts
+or a demonstrated repository-specific ignore requirement. A documentation-only example may
+have no applicable tests, dependencies, CI or build requirements; do not invent those needs. Do not infer remote branch protection, secret contents,
 repository settings, review enforcement or successful execution from files. A tag-pinned
 external action alone is not automatically a high-severity vulnerability. Distinguish project
 requirements and runnable code from tutorial/snippet/test fixtures, generated/vendor sources.
